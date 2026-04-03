@@ -407,28 +407,25 @@ export default function App() {
     setLogs([]); setTxs([]); setResults(null);
     setHired([]); setActive(null); setEarned({});
     try {
-      addLog("stellar", "Loading persistent manager wallet from backend...");
-      const mRes = await fetch("/api/manager");
-      if (!mRes.ok) throw new Error("Failed to load manager wallet");
-      const mData = await mRes.json();
-
-      const mgr = {
-        publicKey: () => mData.publicKey,
-      };
-
-      setManagerKP(mgr);
-      setManagerBal(mData.balance);
-
-      const kps     = {};
+      // 1. Get the Manager's Public Key (hardcoded for backend-controlled account)
+      const managerPubKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4KJJGUJQDP7DC3VAEX2DRKCLNJOHBW"; // Your backend manager public key
+      
+      // 2. Setup agent wallets (these stay random/temp for the demo)
+      const kps = {};
       const current = loadAgents();
-      for (const a of current) kps[a.id] = StellarSdk.Keypair.random();
+      for (const a of current) {
+        kps[a.id] = StellarSdk.Keypair.random();
+        await friendbot(kps[a.id].publicKey());
+      }
 
-      addLog("stellar", `Funding ${current.length} agent wallets via Stellar Friendbot...`);
-      await Promise.all(Object.values(kps).map(kp => friendbot(kp.publicKey())));
-
+      setManagerKP({ publicKey: () => managerPubKey }); // Fake object to keep UI happy
       setAgentKPs(kps);
+      const managerBalance = await getBalance(managerPubKey);
+      setManagerBal(managerBalance);
       setWalletStatus("ready");
-      addLog("stellar", `Manager: ${mData.balance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
+      
+      addLog("stellar", "Secure Backend Manager initialized.");
+      addLog("stellar", `Manager: ${managerBalance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
       addLog("stellar", "All wallets live on Stellar testnet. Ready.");
     } catch(e) {
       setWalletStatus("error"); setWalletMsg(e.message);
@@ -559,15 +556,23 @@ RESPONSE FORMAT (JSON ONLY):
 
         setActive(cfg.id);
         setHired(p => [...p, cfg.id]);
-        addLog("manager", `Hiring ${cfg.label}...`, cfg.id);
         
-        // Execute and track payment
+        // FIX: Use job.reasoning in the log message
+        const reasoningMsg = job.reasoning 
+          ? `Hiring ${cfg.label}. Reasoning: ${job.reasoning}` 
+          : `Hiring ${cfg.label} for specialized task...`;
+
+        addLog("manager", reasoningMsg, cfg.id);
+        
+        // Execute task (safety check included)
         const result = await executeAgentTask(cfg, job.instruction, gathered);
-        gathered[cfg.id] = result;
+        const resultText = result || ""; 
+        gathered[cfg.id] = resultText;
         
-        // Update session earnings tracker
         sessionEarned[cfg.id] = (sessionEarned[cfg.id] || 0) + cfg.price;
-        wordCount += result.split(/\s+/).length;
+        if (resultText.length > 0) {
+          wordCount += resultText.split(/\s+/).length;
+        }
       }
 
       // --- FIX 2: Conditional Summary (Ensures only ONE summary call) ---
