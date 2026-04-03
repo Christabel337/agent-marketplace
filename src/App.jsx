@@ -489,7 +489,10 @@ export default function App() {
     });
 
     const data = await taskRes.json();
+    if (!taskRes.ok) throw new Error(data.error?.message || `${cfg.label} task failed`);
+    
     addLog("done", `${cfg.label} task complete.`, cfg.id);
+    return data.result;
   };
 
   const agentList = agents.map(a => 
