@@ -407,14 +407,18 @@ export default function App() {
     setLogs([]); setTxs([]); setResults(null);
     setHired([]); setActive(null); setEarned({});
     try {
-      // 1. Get the Manager's Public Key (hardcoded for backend-controlled account)
-      const managerPubKey = "GBRPYHIL2CI3WHZDTOOQFC6EB4KJJGUJQDP7DC3VAEX2DRKCLNJOHBW"; // Your backend manager public key
-      
-      // Fund the manager account via Friendbot
-      addLog("stellar", "Funding manager account via Friendbot...");
-      await friendbot(managerPubKey);
-      
-      // 2. Setup agent wallets (these stay random/temp for the demo)
+      addLog("stellar", "Loading persistent manager wallet from backend...");
+      const mRes = await fetch("/api/manager");
+      if (!mRes.ok) throw new Error("Failed to load manager wallet");
+      const mData = await mRes.json();
+
+      const mgr = {
+        publicKey: () => mData.publicKey,
+      };
+
+      setManagerKP(mgr);
+      setManagerBal(mData.balance);
+
       const kps = {};
       const current = loadAgents();
       for (const a of current) {
@@ -422,14 +426,9 @@ export default function App() {
         await friendbot(kps[a.id].publicKey());
       }
 
-      setManagerKP({ publicKey: () => managerPubKey }); // Fake object to keep UI happy
       setAgentKPs(kps);
-      const managerBalance = await getBalance(managerPubKey);
-      setManagerBal(managerBalance);
       setWalletStatus("ready");
-      
-      addLog("stellar", "Secure Backend Manager initialized.");
-      addLog("stellar", `Manager: ${managerBalance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
+      addLog("stellar", `Manager: ${mData.balance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
       addLog("stellar", "All wallets live on Stellar testnet. Ready.");
     } catch(e) {
       setWalletStatus("error"); setWalletMsg(e.message);
