@@ -1,3 +1,247 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+api/
+  agents.js
+  agents.js:Zone.Identifier
+  claude.js
+  claude.js:Zone.Identifier
+public/
+  favicon.svg
+  favicon.svg:Zone.Identifier
+src/
+  App.jsx
+  App.jsx:Zone.Identifier
+  main.jsx
+  main.jsx:Zone.Identifier
+.env.example
+.env.example:Zone.Identifier
+.gitignore
+.gitignore:Zone.Identifier
+index.html
+index.html:Zone.Identifier
+package.json
+package.json:Zone.Identifier
+README.md
+README.md:Zone.Identifier
+vercel.json
+vercel.json:Zone.Identifier
+vite.config.js
+vite.config.js:Zone.Identifier
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="api/agents.js">
+// x402 Payment Required — Agent endpoint
+// Call 1 (no X-Payment-Hash header): returns 402 with payment details
+// Call 2 (with X-Payment-Hash header): verifies payment on Stellar Horizon, runs AI task, returns result
+
+const AGENT_SYSTEMS = {
+  research: "You are a Research Agent. Thoroughly research the given topic and return comprehensive, well-organized findings in clear paragraphs. Be specific and factual.",
+  data:     "You are a Data Analysis Agent. Take the provided research and structure it into clear comparisons, rankings, and bullet-point insights with specific data points.",
+  summary:  "You are a Summary Agent. Synthesize all provided inputs into a polished, actionable final answer with headers and bullet points. Be genuinely useful.",
+};
+
+async function verifyPayment(txHash, expectedDestination, expectedAmount) {
+  // Retry up to 5 times — Horizon can take a few seconds to index a new TX
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const opsRes = await fetch(
+        `https://horizon-testnet.stellar.org/transactions/${txHash}/operations`
+      );
+      if (!opsRes.ok) throw new Error("TX not indexed yet");
+
+      const opsData = await opsRes.json();
+      const operations = opsData._embedded?.records || [];
+
+      const validPayment = operations.find(op =>
+        op.type === "payment" &&
+        op.to === expectedDestination &&
+        parseFloat(op.amount) >= parseFloat(expectedAmount)
+      );
+
+      if (validPayment) return true;
+      throw new Error("No matching payment operation found");
+    } catch (err) {
+      if (attempt === 5) throw new Error(`Payment verification failed: ${err.message}`);
+      await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+    }
+  }
+}
+
+async function runTask(system, task) {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error("GROQ_API_KEY not configured");
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 1000,
+      messages: [
+        { role: "system", content: system },
+        { role: "user",   content: task },
+      ],
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "Groq API error");
+  return data.choices[0].message.content;
+}
+
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Payment-Hash");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST")    return res.status(405).json({ error: "Method not allowed" });
+
+  const { agentId, task, agentPublicKey, system, price } = req.body;
+  const paymentHash    = req.headers["x-payment-hash"];
+  const requiredAmount = String(parseFloat(price) || 1);
+  const agentSystem    = AGENT_SYSTEMS[agentId] || system || "You are a helpful AI agent. Complete the given task thoroughly.";
+
+  if (!agentPublicKey) return res.status(400).json({ error: { message: "agentPublicKey is required" } });
+  if (!task)           return res.status(400).json({ error: { message: "task is required" } });
+
+  // ── No payment hash → return 402 ──────────────────────────────────────────
+  if (!paymentHash) {
+    return res.status(402).json({
+      x402:         true,
+      agentId,
+      amount:       requiredAmount,
+      asset:        "XLM",
+      network:      "Stellar Testnet",
+      destination:  agentPublicKey,
+      description:  `Payment required to unlock ${agentId} agent`,
+      instructions: "Make a Stellar testnet payment, then retry with X-Payment-Hash header",
+    });
+  }
+
+  // ── Payment hash provided → verify on Horizon → run task → return result ──
+  try {
+    await verifyPayment(paymentHash, agentPublicKey, requiredAmount);
+    const result = await runTask(agentSystem, task);
+    return res.status(200).json({ result });
+  } catch (err) {
+    return res.status(402).json({ error: { message: err.message } });
+  }
+}
+</file>
+
+<file path="api/agents.js:Zone.Identifier">
+
+</file>
+
+<file path="api/claude.js">
+export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: { message: "GROQ_API_KEY not set in Vercel environment variables" } });
+  }
+
+  try {
+    const { system, messages, max_tokens } = req.body;
+
+    const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        max_tokens: max_tokens || 1000,
+        messages: [
+          ...(system ? [{ role: "system", content: system }] : []),
+          ...(messages || []),
+        ],
+      }),
+    });
+
+    const data = await groqRes.json();
+    if (!groqRes.ok) {
+      return res.status(groqRes.status).json({ error: { message: data.error?.message || "Groq API error" } });
+    }
+
+    const text = data.choices?.[0]?.message?.content || "";
+    return res.status(200).json({ content: [{ text }] });
+  } catch (err) {
+    return res.status(500).json({ error: { message: err.message } });
+  }
+}
+</file>
+
+<file path="api/claude.js:Zone.Identifier">
+
+</file>
+
+<file path="public/favicon.svg">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="8" fill="#050505"/>
+  <text x="16" y="22" text-anchor="middle" font-size="18" fill="#4ADE80">◈</text>
+</svg>
+</file>
+
+<file path="public/favicon.svg:Zone.Identifier">
+
+</file>
+
+<file path="src/App.jsx">
 import { useState, useRef, useEffect } from "react";
 
 
@@ -398,28 +642,22 @@ export default function App() {
     setLogs([]); setTxs([]); setResults(null);
     setHired([]); setActive(null); setEarned({});
     try {
-      addLog("stellar", "Loading persistent manager wallet from backend...");
-      const mRes = await fetch("/api/manager");
-      if (!mRes.ok) throw new Error("Failed to load manager wallet");
-      const mData = await mRes.json();
-
-      const mgr = {
-        publicKey: () => mData.publicKey,
-      };
-
-      setManagerKP(mgr);
-      setManagerBal(mData.balance);
-
-      const kps     = {};
-      const current = loadAgents();
+      addLog("stellar", "Generating keypairs for manager + all agents...");
+      const mgr        = StellarSdk.Keypair.random();
+      const kps        = {};
+      const current    = loadAgents();
       for (const a of current) kps[a.id] = StellarSdk.Keypair.random();
 
-      addLog("stellar", `Funding ${current.length} agent wallets via Stellar Friendbot...`);
-      await Promise.all(Object.values(kps).map(kp => friendbot(kp.publicKey())));
+      addLog("stellar", `Funding ${current.length + 1} wallets via Stellar Friendbot...`);
+      await Promise.all([
+        friendbot(mgr.publicKey()),
+        ...Object.values(kps).map(kp => friendbot(kp.publicKey())),
+      ]);
 
-      setAgentKPs(kps);
+      const bal = await getBalance(mgr.publicKey());
+      setManagerKP(mgr); setAgentKPs(kps); setManagerBal(bal);
       setWalletStatus("ready");
-      addLog("stellar", `Manager: ${mData.balance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
+      addLog("stellar", `Manager: ${bal.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
       addLog("stellar", "All wallets live on Stellar testnet. Ready.");
     } catch(e) {
       setWalletStatus("error"); setWalletMsg(e.message);
@@ -465,30 +703,19 @@ export default function App() {
       addLog("manager", "Manager Agent online — analyzing task and available agents...");
       await sleep(400);
 
-      const agentList = agents.map(a => 
+      // Manager plans dynamically based on all registered agents
+      const agentList = agents.map(a =>
         `- id:"${a.id}" name:"${a.label}" skill:"${a.desc}" price:${a.price}XLM`
       ).join("\n");
 
-      const managerSystemPrompt = `
-You are the Orchestrator Agent. Your goal is to solve the user's request using the LEAST amount of money possible.
-1. Analyze the user's task.
-2. Select ONLY the specific agents from the list below that are absolutely necessary.
-3. If one agent can do the whole task, hire only that one.
-4. If agents are redundant, pick the cheaper or more relevant one.
-5. Return ONLY a JSON object with an "assignments" array.
-
-Available Agents:
-${agentList}
-
-JSON Format:
-{
-  "assignments": [
-    { "agentId": "agent_id_here", "instruction": "specific sub-task for this agent" }
-  ]
-}
-`;
-
-      const raw = await callClaude(managerSystemPrompt, `Task: "${task}"`);
+      const raw = await callClaude(
+        `You are a Manager Agent coordinating a marketplace of specialist AI agents.
+Assign a specific instruction to EVERY available agent listed.
+Agents execute sequentially — each receives all previous agents' outputs.
+Return ONLY valid JSON, no markdown:
+{ "assignments": [ { "agentId": "...", "instruction": "..." } ] }`,
+        `Available agents:\n${agentList}\n\nTask: "${task}"\n\nCreate a tailored instruction for every agent. Build on previous agents' work where relevant.`
+      );
 
       let assignments = agents.map(a => ({ agentId: a.id, instruction: `Complete this task using your specialty: ${task}` }));
       try {
@@ -544,22 +771,8 @@ JSON Format:
         await sleep(400);
 
         // ── x402 Step 2: Make Stellar payment ───────────────────────────────
-        addLog("tx", `Requesting backend manager payment to ${abbr(agentKPs[agentId].publicKey())}...`, agentId);
-        const payRes = await fetch("/api/pay", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            destination: agentKPs[agentId].publicKey(),
-            amount: cfg.price,
-          }),
-        });
-
-        if (!payRes.ok) {
-          const payErr = await payRes.json().catch(() => ({}));
-          throw new Error(payErr.error?.message || "Manager payment failed");
-        }
-
-        const { hash } = await payRes.json();
+        addLog("tx", `Signing Stellar payment to ${abbr(agentKPs[agentId].publicKey())}...`, agentId);
+        const hash = await stellarPay(managerKP, agentKPs[agentId].publicKey(), cfg.price);
         setTxs(p => [...p, { hash, agentId, amount: cfg.price }]);
         sessionEarned[agentId] = (sessionEarned[agentId] || 0) + cfg.price;
         setEarned({...sessionEarned});
@@ -640,56 +853,14 @@ JSON Format:
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-
-        .glass-panel {
-          background: rgba(255, 255, 255, 0.03);
-          backdrop-filter: blur(10px);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 16px;
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-        }
-
-        .bento-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-
-        input {
-          background: rgba(10, 10, 10, 0.8) !important;
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
-          color: #fff !important;
-          box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
-        }
-
-        .agent-card-glow {
-          position: relative;
-          overflow: hidden;
-        }
-
-        .agent-card-glow::before {
-          content: "";
-          position: absolute;
-          top: -50%; left: -50%;
-          width: 200%; height: 200%;
-          background: radial-gradient(circle, rgba(74, 222, 128, 0.1) 0%, transparent 70%);
-          opacity: 0;
-          transition: opacity 0.3s;
-        }
-
-        .agent-card-glow:hover::before {
-          opacity: 1;
-        }
-
-        button {
-          background: linear-gradient(135deg, #4ADE80 0%, #2DD4BF 100%) !important;
-          color: #000 !important;
-          border: none !important;
-          font-weight: 700 !important;
-          box-shadow: 0 4px 14px 0 rgba(74, 222, 128, 0.39);
-        }
+        @keyframes pulse { from{opacity:0.6} to{opacity:1} }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        ::-webkit-scrollbar { width:4px }
+        ::-webkit-scrollbar-track { background:#0a0a0a }
+        ::-webkit-scrollbar-thumb { background:#333;border-radius:2px }
+        input:focus { outline:none!important; box-shadow:0 0 0 1px #4ADE8066!important }
+        input[type=number] { -moz-appearance:textfield }
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none }
       `}</style>
 
       <div style={{ maxWidth: 900, margin: "0 auto" }}>
@@ -868,3 +1039,403 @@ JSON Format:
     </div>
   );
 }
+</file>
+
+<file path="src/App.jsx:Zone.Identifier">
+
+</file>
+
+<file path="src/main.jsx">
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App.jsx";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+</file>
+
+<file path="src/main.jsx:Zone.Identifier">
+
+</file>
+
+<file path=".env.example">
+GROQ_API_KEY=your_groq_api_key_here
+</file>
+
+<file path=".env.example:Zone.Identifier">
+
+</file>
+
+<file path=".gitignore">
+node_modules
+dist
+.DS_Store
+.env
+.env.local
+.env.production
+*.log
+</file>
+
+<file path=".gitignore:Zone.Identifier">
+
+</file>
+
+<file path="index.html">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Marketplace — Hire AI, Pay with Stellar</title>
+    <meta name="description" content="A multi-agent AI marketplace where agents hire and pay other agents using real Stellar blockchain payments." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <script src="https://cdn.jsdelivr.net/npm/@stellar/stellar-sdk@12.3.0/dist/stellar-sdk.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="index.html:Zone.Identifier">
+
+</file>
+
+<file path="package.json">
+{
+  "name": "agent-marketplace",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.2.0"
+  }
+}
+</file>
+
+<file path="package.json:Zone.Identifier">
+
+</file>
+
+<file path="README.md">
+# Agent Marketplace 🤖💸
+
+> A multi-agent AI system where agents don't just use tools — they **hire other agents and pay them** to complete tasks, with every payment settled on the Stellar blockchain.
+
+**Live Demo →** [agent-marketplace.vercel.app](https://agent-marketplace.vercel.app)
+
+---
+
+## 💡 The Idea
+
+Most AI agent systems have one agent doing everything. That doesn't scale, and it doesn't reflect how real economies work.
+
+I wanted to build something closer to how real businesses operate: a **Manager Agent** that breaks down a task, finds the right specialists, pays them for their work, and combines everything into a final answer.
+
+The twist? The payments aren't simulated. Every transaction hits the **Stellar testnet** and is verifiable on-chain. And unlike most agent demos, anyone can register their own agent into the marketplace — define a skill, set a price, and start earning XLM.
+
+---
+
+## 🧠 How It Works
+
+```
+User types a task
+       ↓
+Manager Agent (Claude)
+  → Reads all registered agents and their skills
+  → Decomposes task into tailored subtasks for each agent
+       ↓
+For each agent (in sequence):
+  1. Manager sends XLM payment via Stellar SDK
+  2. TX confirmed on Stellar testnet blockchain
+  3. Agent executes task using Claude API
+  4. Output passed to next agent as context
+       ↓
+Results compiled — every agent's output viewable in tabs
+Earnings logged to on-chain leaderboard
+```
+
+---
+
+## 🏗 Three Views
+
+### ◈ Marketplace
+The main workspace. Shows all available agents with their wallet addresses, prices, and live status. You fund all wallets with one click (via Stellar Friendbot), enter a task, and watch the network coordinate in real time. Every payment appears in the Stellar Ledger panel with a clickable link to `stellar.expert`.
+
+### + Registry
+The open agent economy. Anyone can register a new specialist agent by providing a name, skill description, and price. The app generates a fresh Stellar keypair, funds it via Friendbot, and adds it to the marketplace. Custom agents immediately participate in future tasks — the Manager reads all registered agents dynamically and tailors instructions to each one's skill.
+
+### ↑ Leaderboard
+A persistent earnings table showing cumulative XLM earned by every agent across all tasks run in the app. Rankings, task counts, and average earnings per task are stored in localStorage and survive page refreshes. This makes the app feel like a real, living economy rather than a one-time demo.
+
+---
+
+## 🔗 Real Blockchain Payments
+
+When you click **Generate + Fund Wallets**, the app:
+1. Generates fresh Stellar keypairs for the manager and every registered agent
+2. Calls [Stellar Friendbot](https://friendbot.stellar.org) in parallel to fund all wallets with testnet XLM
+3. Every subsequent payment uses the real `@stellar/stellar-sdk` to build, sign, and submit transactions to Horizon testnet
+
+Every TX hash in the UI links to [stellar.expert](https://stellar.expert/explorer/testnet) for on-chain verification.
+
+---
+
+## 🤖 Dynamic Agent Selection
+
+The Manager Agent doesn't use hardcoded roles. At runtime, it:
+1. Reads the full list of registered agents with their skill descriptions
+2. Calls Claude to assign a tailored instruction to every agent
+3. Executes agents sequentially — each agent receives all previous agents' outputs as context
+
+This means adding a new agent to the registry immediately changes how future tasks are decomposed and executed.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | React + Vite |
+| AI | Claude API (`claude-sonnet`) |
+| Blockchain | Stellar SDK + Horizon testnet |
+| Persistence | localStorage (leaderboard + agent registry) |
+| Deployment | Vercel |
+
+---
+
+## 🚀 Running Locally
+
+```bash
+# 1. Clone
+git clone https://github.com/YOUR_USERNAME/agent-marketplace.git
+cd agent-marketplace
+
+# 2. Install
+npm install
+
+# 3. Run
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173).
+
+> **Note:** The app calls the Anthropic API directly from the browser. For production deployments, route API calls through a backend proxy to protect your key.
+
+---
+
+## 📁 Project Structure
+
+```
+agent-marketplace/
+├── src/
+│   ├── App.jsx        # All agent logic, Stellar payments, registry, leaderboard, UI
+│   └── main.jsx       # React entry point + Buffer polyfill for Stellar SDK
+├── public/
+│   └── favicon.svg
+├── index.html
+├── vite.config.js     # Vite config with globalThis + buffer polyfill for Stellar
+├── vercel.json        # SPA rewrite rules for Vercel
+└── package.json
+```
+
+---
+
+## 🔮 What's Next
+
+- [ ] Agent reputation scores based on output quality ratings
+- [ ] Multi-round tasks where agents can hire sub-agents recursively
+- [ ] Stellar mainnet support with real micropayments
+- [ ] Public agent registry — submit an agent anyone can hire
+- [ ] Telegram bot interface to trigger the network by chat
+- [ ] Agent escrow — payment held until task is verified complete
+
+---
+
+## 🙏 Built With
+
+- [Anthropic Claude API](https://anthropic.com)
+- [Stellar SDK](https://stellar.org)
+- [Stellar Expert Explorer](https://stellar.expert)
+- [Vercel](https://vercel.com)
+
+---
+
+*Built for the Stellar Hackathon · 2026*
+</file>
+
+<file path="README.md:Zone.Identifier">
+
+</file>
+
+<file path="vercel.json">
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/" }
+  ]
+}
+</file>
+
+<file path="vercel.json:Zone.Identifier">
+
+</file>
+
+<file path="vite.config.js">
+import { defineConfig, loadEnv } from "vite";
+import react from "@vitejs/plugin-react";
+
+// ── shared helpers ─────────────────────────────────────────────────────────────
+async function groqCall(apiKey, system, messages, max_tokens = 1000) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      max_tokens,
+      messages: [
+        ...(system ? [{ role: "system", content: system }] : []),
+        ...(messages || []),
+      ],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || "Groq error");
+  return data.choices[0].message.content;
+}
+
+async function verifyPayment(txHash, expectedDestination, expectedAmount) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      const res = await fetch(
+        `https://horizon-testnet.stellar.org/transactions/${txHash}/operations`
+      );
+      if (!res.ok) throw new Error("TX not indexed yet");
+      const data = await res.json();
+      const ops  = data._embedded?.records || [];
+      const ok   = ops.find(op =>
+        op.type === "payment" &&
+        op.to === expectedDestination &&
+        parseFloat(op.amount) >= parseFloat(expectedAmount)
+      );
+      if (ok) return true;
+      throw new Error("No matching payment found");
+    } catch (err) {
+      if (attempt === 5) throw new Error(`Payment verification failed: ${err.message}`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", chunk => (body += chunk));
+    req.on("end", () => {
+      try { resolve(JSON.parse(body)); }
+      catch { resolve({}); }
+    });
+    req.on("error", reject);
+  });
+}
+
+function sendJSON(res, status, data) {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify(data));
+}
+
+// ── vite config ────────────────────────────────────────────────────────────────
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+
+  return {
+    plugins: [
+      react(),
+      {
+        name: "api-proxy",
+        configureServer(server) {
+
+          // /api/claude — manager planning calls
+          server.middlewares.use("/api/claude", async (req, res) => {
+            if (req.method === "OPTIONS") { res.writeHead(200); res.end(); return; }
+            try {
+              const body   = await readBody(req);
+              const apiKey = env.GROQ_API_KEY;
+              if (!apiKey) throw new Error("GROQ_API_KEY missing from .env file");
+              const text = await groqCall(apiKey, body.system, body.messages, body.max_tokens);
+              sendJSON(res, 200, { content: [{ text }] });
+            } catch (err) {
+              sendJSON(res, 500, { error: { message: err.message } });
+            }
+          });
+
+          // /api/agents — x402 payment-gated agent endpoints
+          server.middlewares.use("/api/agents", async (req, res) => {
+            if (req.method === "OPTIONS") { res.writeHead(200); res.end(); return; }
+            try {
+              const body           = await readBody(req);
+              const paymentHash    = req.headers["x-payment-hash"];
+              const { agentId, task, agentPublicKey, system, price } = body;
+              const requiredAmount = String(parseFloat(price) || 1);
+              const apiKey         = env.GROQ_API_KEY;
+
+              if (!apiKey)         throw new Error("GROQ_API_KEY missing from .env file");
+              if (!agentPublicKey) throw new Error("agentPublicKey is required");
+              if (!task)           throw new Error("task is required");
+
+              // No payment hash → 402
+              if (!paymentHash) {
+                sendJSON(res, 402, {
+                  x402:         true,
+                  agentId,
+                  amount:       requiredAmount,
+                  asset:        "XLM",
+                  network:      "Stellar Testnet",
+                  destination:  agentPublicKey,
+                  description:  `Payment required to unlock ${agentId} agent`,
+                  instructions: "Make a Stellar testnet payment, then retry with X-Payment-Hash header",
+                });
+                return;
+              }
+
+              // Payment hash present → verify on Horizon → run task
+              await verifyPayment(paymentHash, agentPublicKey, requiredAmount);
+              const agentSystem = system || "You are a helpful AI agent. Complete the given task thoroughly.";
+              const result = await groqCall(apiKey, agentSystem, [{ role: "user", content: task }]);
+              sendJSON(res, 200, { result });
+            } catch (err) {
+              sendJSON(res, 402, { error: { message: err.message } });
+            }
+          });
+
+        },
+      },
+    ],
+    define: {
+      global: "globalThis",
+    },
+  };
+});
+</file>
+
+<file path="vite.config.js:Zone.Identifier">
+
+</file>
+
+</files>
