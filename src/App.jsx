@@ -91,8 +91,8 @@ function NavTab({ label, active, onClick, accent = "#4ADE80" }) {
   return (
     <button onClick={onClick} style={{
       padding: "10px 20px", border: "none", cursor: "pointer", fontFamily: "inherit",
-      background: "transparent", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em",
-      color: active ? accent : "#555",
+      background: active ? "rgba(255,255,255,0.05)" : "transparent", fontSize: 12, fontWeight: 600, letterSpacing: "0.08em",
+      color: active ? accent : "#A0A0A0",
       borderBottom: active ? `2px solid ${accent}` : "2px solid transparent",
       transition: "all 0.2s",
     }}>
@@ -116,10 +116,12 @@ function Tag({ children, color }) {
 function AgentCard({ cfg, keypair, hired, earned, isActive }) {
   const isHired = hired.includes(cfg.id);
   return (
-    <div style={{
+    <div className="glass-card" style={{
       borderRadius: 12, padding: 16, transition: "all 0.3s",
-      border: `1px solid ${isHired ? cfg.accent + "66" : "#ffffff18"}`,
-      background: isActive ? cfg.accent + "12" : "#0a0a0a",
+      border: `1px solid rgba(255,255,255,0.1)`,
+      background: isActive ? cfg.accent + "12" : "rgba(255,255,255,0.03)",
+      backdropFilter: "blur(10px)",
+      boxShadow: "0 4px 6px rgba(0,0,0,0.3)",
       position: "relative", overflow: "hidden",
     }}>
       {isActive && (
@@ -153,7 +155,7 @@ function LogLine({ log, agents }) {
     <div style={{ display: "flex", gap: 10, padding: "5px 0", borderBottom: "1px solid #ffffff08", fontSize: 12 }}>
       <span style={{ color: "#444", flexShrink: 0, fontFamily: "var(--font-mono)" }}>{log.t}</span>
       <span style={{ color: "var(--accent)", flexShrink: 0 }}>{log.type === 'manager' ? '🧠' : '🤖'}</span>
-      <span style={{ color: "#c0c0c0", wordBreak: "break-all" }}>
+      <span style={{ color: "#c0c0c0", wordBreak: "break-word", overflowWrap: "anywhere" }}>
         {log.msg}
         {/* Highlight the Reasoning in the UI */}
         {log.msg.includes("Selected") && <div style={{ fontSize: '10px', color: '#666', marginTop: '2px', fontStyle: 'italic' }}>Verified Skill Match ✅</div>}
@@ -165,12 +167,12 @@ function LogLine({ log, agents }) {
 function TxCard({ tx, agents }) {
   const cfg = agents.find(a => a.id === tx.agentId);
   return (
-    <div style={{ borderRadius: 8, padding: "10px 12px", marginBottom: 8, background: "#0d0d0d", border: `1px solid ${cfg?.accent}33` }}>
+    <div style={{ borderRadius: 8, padding: "10px 12px", marginBottom: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(10px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: cfg?.accent }}>{cfg?.icon} {cfg?.label}</span>
         <span style={{ fontSize: 12, color: "#F87171", fontWeight: 600 }}>-{tx.amount} XLM</span>
       </div>
-      <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "#444", marginBottom: 6, wordBreak: "break-all" }}>{tx.hash}</div>
+      <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "#A0A0A0", marginBottom: 6, wordBreak: "break-all" }}>{tx.hash}</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 10, color: "#4ADE80" }}>● CONFIRMED ON-CHAIN</span>
         <a href={EXPLORER(tx.hash)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "#A78BFA", textDecoration: "none" }}>View on explorer →</a>
@@ -182,13 +184,13 @@ function TxCard({ tx, agents }) {
 function ResultTabs({ results, agents, tab, setTab }) {
   const used = agents.filter(a => results[a.id]);
   return (
-    <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #1a1a1a", background: "#080808" }}>
-      <div style={{ display: "flex", borderBottom: "1px solid #1a1a1a", overflowX: "auto" }}>
+    <div className="glass-card" style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.1)", overflowX: "auto" }}>
         {used.map(a => (
           <button key={a.id} onClick={() => setTab(a.id)} style={{
             flex: 1, minWidth: 130, padding: "12px 8px", border: "none", cursor: "pointer",
-            background: tab === a.id ? "#111" : "transparent",
-            color: tab === a.id ? a.accent : "#555",
+            background: tab === a.id ? "rgba(255,255,255,0.05)" : "transparent",
+            color: tab === a.id ? a.accent : "#A0A0A0",
             fontSize: 11, fontWeight: tab === a.id ? 600 : 400,
             borderBottom: tab === a.id ? `2px solid ${a.accent}` : "2px solid transparent",
             transition: "all 0.2s", fontFamily: "inherit", whiteSpace: "nowrap",
@@ -197,7 +199,7 @@ function ResultTabs({ results, agents, tab, setTab }) {
           </button>
         ))}
       </div>
-      <div style={{ padding: 20, maxHeight: 380, overflowY: "auto", fontSize: 13, lineHeight: 1.8, color: "#d0d0d0", whiteSpace: "pre-wrap" }}>
+      <div style={{ padding: 20, maxHeight: 380, overflowY: "auto", fontSize: 13, lineHeight: 1.8, color: "#E0E0E0", whiteSpace: "pre-wrap" }}>
         {results[tab] || "No result for this agent."}
       </div>
     </div>
@@ -226,29 +228,29 @@ function RegistryView({ agents, agentKPs, walletStatus, onAdd, onRemove }) {
   return (
     <div>
       {/* form */}
-      <div style={{ border: "1px solid #1a1a1a", borderRadius: 12, padding: 20, background: "#080808", marginBottom: 20 }}>
+      <div className="glass-card" style={{ borderRadius: 12, padding: 20, marginBottom: 20, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
         <div style={{ fontSize: 10, color: "#A78BFA", letterSpacing: "0.12em", marginBottom: 16, fontWeight: 600 }}>REGISTER NEW AGENT</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <div>
-            <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>AGENT NAME</div>
+            <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>AGENT NAME</div>
             <input value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))}
               placeholder="e.g. Fact Checker Agent"
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #1e1e1e", background: "#0d0d0d", color: "#e0e0e0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
             />
           </div>
           <div>
-            <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>PRICE (XLM)</div>
+            <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>PRICE (XLM)</div>
             <input value={form.price} onChange={e => setForm(p => ({...p, price: e.target.value}))}
               type="number" min="0.5" step="0.5"
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #1e1e1e", background: "#0d0d0d", color: "#e0e0e0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
             />
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: "#555", marginBottom: 6 }}>SKILL / DESCRIPTION</div>
+          <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>SKILL / DESCRIPTION</div>
           <input value={form.desc} onChange={e => setForm(p => ({...p, desc: e.target.value}))}
             placeholder="e.g. Verifies facts and flags inaccuracies in research"
-            style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #1e1e1e", background: "#0d0d0d", color: "#e0e0e0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
+            style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
           />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -261,8 +263,8 @@ function RegistryView({ agents, agentKPs, walletStatus, onAdd, onRemove }) {
           </button>
           {status === "done"  && <span style={{ fontSize: 11, color: "#4ADE80" }}>Agent registered and funded on testnet!</span>}
           {status === "error" && <span style={{ fontSize: 11, color: "#F87171" }}>{errMsg}</span>}
-          {status === "idle"  && walletStatus === "ready"  && <span style={{ fontSize: 11, color: "#555" }}>Wallet auto-funded via Stellar Friendbot</span>}
-          {status === "idle"  && walletStatus !== "ready"  && <span style={{ fontSize: 11, color: "#666" }}>Set up wallets on the Marketplace tab first</span>}
+          {status === "idle"  && walletStatus === "ready"  && <span style={{ fontSize: 11, color: "#A0A0A0" }}>Wallet auto-funded via Stellar Friendbot</span>}
+          {status === "idle"  && walletStatus !== "ready"  && <span style={{ fontSize: 11, color: "#A0A0A0" }}>Set up wallets on the Marketplace tab first</span>}
         </div>
       </div>
 
@@ -272,7 +274,7 @@ function RegistryView({ agents, agentKPs, walletStatus, onAdd, onRemove }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
         {agents.map(a => (
-          <div key={a.id} style={{ borderRadius: 10, padding: 14, background: "#0a0a0a", border: `1px solid ${a.accent}33` }}>
+          <div key={a.id} className="glass-card" style={{ borderRadius: 10, padding: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
               <span style={{ fontSize: 20, color: a.accent }}>{a.icon}</span>
               {a.isDefault
@@ -280,10 +282,10 @@ function RegistryView({ agents, agentKPs, walletStatus, onAdd, onRemove }) {
                 : <button onClick={() => onRemove(a.id)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid #F8717133", background: "transparent", color: "#F87171", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>remove</button>
               }
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#f0f0f0", marginBottom: 3 }}>{a.label}</div>
-            <div style={{ fontSize: 11, color: "#555", marginBottom: 8 }}>{a.desc}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#E0E0E0", marginBottom: 3 }}>{a.label}</div>
+            <div style={{ fontSize: 11, color: "#A0A0A0", marginBottom: 8 }}>{a.desc}</div>
             <div style={{ fontSize: 12, color: a.accent, fontWeight: 600, marginBottom: 4 }}>{a.price} XLM / task</div>
-            {agentKPs[a.id] && <div style={{ fontSize: 9, color: "#333", fontFamily: "var(--font-mono)" }}>{abbr(agentKPs[a.id].publicKey())}</div>}
+            {agentKPs[a.id] && <div style={{ fontSize: 9, color: "#A0A0A0", fontFamily: "var(--font-mono)" }}>{abbr(agentKPs[a.id].publicKey())}</div>}
           </div>
         ))}
       </div>
@@ -303,7 +305,7 @@ function LeaderboardView({ board, agents }) {
   return (
     <div>
       <div style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", marginBottom: 14, fontWeight: 600 }}>
-        AGENT EARNINGS LEADERBOARD — STELLAR TESTNET
+        AGENT EARNINGS LEADERBOARD (STELLAR TESTNET)
       </div>
 
       {rows.length === 0 ? (
@@ -318,45 +320,47 @@ function LeaderboardView({ board, agents }) {
               const accent = cfg?.accent || row.accent || "#888";
               const avg    = row.tasks > 0 ? (row.earned / row.tasks).toFixed(2) : "0.00";
               return (
-                <div key={row.id} style={{
+                <div key={row.id} className="glass-card" style={{
                   borderRadius: 10, padding: "14px 18px",
-                  background: i === 0 ? "#0d0d08" : "#0a0a0a",
-                  border: i === 0 ? `1px solid ${accent}55` : "1px solid #1a1a1a",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  backdropFilter: "blur(10px)",
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.3)",
                   display: "flex", alignItems: "center", gap: 16,
                 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                    background: i < 3 ? MEDALS[i] + "22" : "#1a1a1a",
-                    border: `1px solid ${i < 3 ? MEDALS[i] + "66" : "#333"}`,
+                    background: i < 3 ? MEDALS[i] + "22" : "rgba(255,255,255,0.03)",
+                    border: `1px solid ${i < 3 ? MEDALS[i] + "66" : "rgba(255,255,255,0.1)"}`,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 13, fontWeight: 600,
-                    color: i < 3 ? MEDALS[i] : "#555",
+                    color: i < 3 ? MEDALS[i] : "#A0A0A0",
                   }}>
                     {i + 1}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
                       <span style={{ fontSize: 16, color: accent }}>{row.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#f0f0f0" }}>{row.label}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#E0E0E0" }}>{row.label}</span>
                       {i === 0 && <Tag color={accent}>TOP EARNER</Tag>}
                     </div>
-                    <div style={{ fontSize: 11, color: "#555" }}>
+                    <div style={{ fontSize: 11, color: "#A0A0A0" }}>
                       {row.tasks} task{row.tasks !== 1 ? "s" : ""} completed · {avg} XLM avg per task
                     </div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ fontSize: 22, fontWeight: 600, color: accent }}>{row.earned}</div>
-                    <div style={{ fontSize: 10, color: "#555" }}>XLM earned</div>
+                    <div style={{ fontSize: 10, color: "#A0A0A0" }}>XLM earned</div>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          <div style={{ padding: "12px 18px", borderRadius: 10, background: "#080808", border: "1px solid #1a1a1a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="glass-card" style={{ padding: "12px 18px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ fontSize: 11, color: "#555" }}>Total XLM paid out to all agents</div>
-              <div style={{ fontSize: 10, color: "#333", marginTop: 2 }}>Verified on Stellar testnet blockchain</div>
+              <div style={{ fontSize: 11, color: "#A0A0A0" }}>Total XLM paid out to all agents</div>
+              <div style={{ fontSize: 10, color: "#A0A0A0", marginTop: 2 }}>Verified on Stellar testnet blockchain</div>
             </div>
             <div style={{ fontSize: 22, fontWeight: 600, color: "#4ADE80" }}>{totalPaid.toFixed(1)} XLM</div>
           </div>
@@ -654,8 +658,8 @@ RESPONSE FORMAT (JSON ONLY):
         {/* TOP HEADER & STATUS PILL */}
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 0" }}>
           <div>
-            <h1 style={{ fontSize: 18, margin: 0, fontWeight: 700, letterSpacing: "-0.03em" }}>
-              AGENT<span style={{ color: "var(--accent)" }}>MARKET</span>
+            <h1 style={{ fontSize: 18, margin: 0, fontWeight: 700, letterSpacing: "1px" }}>
+              AGENTE<span style={{ color: "#22D3EE", textShadow: "0 0 8px rgba(34, 211, 238, 0.5)" }}>X</span>
             </h1>
           </div>
           
@@ -672,7 +676,7 @@ RESPONSE FORMAT (JSON ONLY):
         </header>
 
         {/* nav */}
-        <div style={{ borderBottom: "1px solid #111", marginBottom: 20, display: "flex" }}>
+        <div style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 20, display: "flex" }}>
           <NavTab label="◈ Marketplace" active={view === "marketplace"} onClick={() => setView("marketplace")} accent="#4ADE80"/>
           <NavTab label="+ Registry"    active={view === "registry"}    onClick={() => setView("registry")}    accent="#A78BFA"/>
           <NavTab label="↑ Leaderboard" active={view === "leaderboard"} onClick={() => setView("leaderboard")} accent="#F59E0B"/>
@@ -691,9 +695,9 @@ RESPONSE FORMAT (JSON ONLY):
               ))}
             </div>
 
-            {/* step 1 */}
-            <div style={{ border: "1px solid #1a1a1a", borderRadius: 12, padding: 16, background: "#080808", marginBottom: 12 }}>
-              <div style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", marginBottom: 12, fontWeight: 600 }}>STEP 1 — SETUP STELLAR WALLETS</div>
+            {/* setup wallets */}
+            <div className="glass-card" style={{ borderRadius: 12, padding: 16, marginBottom: 12, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+              <div style={{ fontSize: 10, color: "#E0E0E0", letterSpacing: "0.12em", marginBottom: 12, fontWeight: 600 }}>SETUP STELLAR WALLETS</div>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 <button onClick={setupWallets} disabled={walletStatus === "loading"} style={{
                   padding: "10px 20px", borderRadius: 8, border: "1px solid",
@@ -707,7 +711,7 @@ RESPONSE FORMAT (JSON ONLY):
                    walletStatus === "ready"   ? "WALLETS READY (REGENERATE)" :
                                                "GENERATE + FUND WALLETS ▶"}
                 </button>
-                <div style={{ fontSize: 11, color: "#555", flex: 1 }}>
+                <div style={{ fontSize: 11, color: "#E0E0E0", flex: 1 }}>
                   {walletStatus === "idle"    && `Funds manager + ${agents.length} agent wallets via Friendbot (free)`}
                   {walletStatus === "loading" && <span style={{ color: "#A78BFA", animation: "blink 1s infinite", display: "inline-block" }}>Calling Stellar Friendbot (~5s)...</span>}
                   {walletStatus === "ready"   && <span style={{ color: "#4ADE80" }}>All {agents.length + 1} wallets live on Stellar testnet.</span>}
@@ -716,16 +720,16 @@ RESPONSE FORMAT (JSON ONLY):
               </div>
             </div>
 
-            {/* step 2 */}
-            <div style={{ border: "1px solid #1a1a1a", borderRadius: 12, padding: 16, background: "#080808", marginBottom: 16, opacity: walletStatus === "ready" ? 1 : 0.4 }}>
-              <div style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 600 }}>STEP 2 — ENTER TASK</div>
+            {/* enter task */}
+            <div className="glass-card" style={{ borderRadius: 12, padding: 16, marginBottom: 16, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)", opacity: walletStatus === "ready" ? 1 : 0.4 }}>
+              <div style={{ fontSize: 10, color: "#E0E0E0", letterSpacing: "0.12em", marginBottom: 10, fontWeight: 600 }}>ENTER TASK</div>
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                 <input
                   value={task} onChange={e => setTask(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && run()}
                   disabled={running || walletStatus !== "ready"}
-                  placeholder="Type your task — all agents coordinate and pay each other on-chain..."
-                  style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid #1e1e1e", background: "#0d0d0d", color: "#e0e0e0", fontSize: 13, fontFamily: "inherit" }}
+                  placeholder="Type your task, all agents coordinate and pay each other on-chain..."
+                  style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 13, fontFamily: "inherit" }}
                 />
                 <button onClick={run} disabled={running || !task.trim() || walletStatus !== "ready"} style={{
                   padding: "10px 20px", borderRadius: 8, border: "1px solid",
@@ -739,14 +743,14 @@ RESPONSE FORMAT (JSON ONLY):
                 </button>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 10, color: "#444", alignSelf: "center" }}>Try:</span>
+                <span style={{ fontSize: 10, color: "#A0A0A0", alignSelf: "center" }}>Try:</span>
                 {EXAMPLES.map((ex, i) => (
                   <button key={i} onClick={() => setTask(ex)} disabled={running || walletStatus !== "ready"} style={{
-                    padding: "3px 10px", borderRadius: 6, border: "1px solid #1e1e1e",
-                    background: "transparent", color: "#555", fontSize: 10, cursor: "pointer", fontFamily: "inherit",
+                    padding: "3px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.1)",
+                    background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#A0A0A0", fontSize: 10, cursor: "pointer", fontFamily: "inherit",
                   }}
-                  onMouseEnter={e => { e.target.style.color="#888"; e.target.style.borderColor="#333"; }}
-                  onMouseLeave={e => { e.target.style.color="#555"; e.target.style.borderColor="#1e1e1e"; }}
+                  onMouseEnter={e => { e.target.style.color="#E0E0E0"; e.target.style.borderColor="rgba(255,255,255,0.2)"; }}
+                  onMouseLeave={e => { e.target.style.color="#A0A0A0"; e.target.style.borderColor="rgba(255,255,255,0.1)"; }}
                   >{ex}</button>
                 ))}
               </div>
@@ -754,10 +758,10 @@ RESPONSE FORMAT (JSON ONLY):
 
             {/* activity + ledger */}
             {logs.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-                <div style={{ border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden", background: "#080808" }}>
-                  <div style={{ padding: "10px 14px", borderBottom: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", fontWeight: 600 }}>ACTIVITY FEED</span>
+              <div className="activity-ledger-container" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                <div className="glass-card" style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 10, color: "#E0E0E0", letterSpacing: "0.12em", fontWeight: 600 }}>ACTIVITY FEED</span>
                     {running && <span style={{ fontSize: 10, color: "#4ADE80", animation: "blink 1s infinite" }}>● LIVE</span>}
                   </div>
                   <div style={{ maxHeight: 280, overflowY: "auto", padding: "8px 12px" }}>
@@ -765,14 +769,14 @@ RESPONSE FORMAT (JSON ONLY):
                     <div ref={logRef}/>
                   </div>
                 </div>
-                <div style={{ border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden", background: "#080808" }}>
-                  <div style={{ padding: "10px 14px", borderBottom: "1px solid #111", display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", fontWeight: 600 }}>STELLAR LEDGER</span>
+                <div className="glass-card" style={{ borderRadius: 12, overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.1)", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: 10, color: "#E0E0E0", letterSpacing: "0.12em", fontWeight: 600 }}>STELLAR LEDGER</span>
                     {txs.length > 0 && <span style={{ fontSize: 10, color: "#A78BFA" }}>{txs.length} on-chain TXs</span>}
                   </div>
                   <div style={{ maxHeight: 280, overflowY: "auto", padding: "8px 12px" }}>
                     {txs.length === 0
-                      ? <div style={{ fontSize: 11, color: "#333", textAlign: "center", padding: "30px 0" }}>Awaiting transactions...</div>
+                      ? <div style={{ fontSize: 11, color: "#A0A0A0", textAlign: "center", padding: "30px 0" }}>Awaiting transactions...</div>
                       : txs.map((tx, i) => <TxCard key={i} tx={tx} agents={agents}/>)
                     }
                   </div>
@@ -789,14 +793,14 @@ RESPONSE FORMAT (JSON ONLY):
                   {txs.map(tx => {
                     const cfg = agents.find(a => a.id === tx.agentId);
                     return (
-                      <div key={tx.agentId} style={{ flex: 1, minWidth: 120, padding: "10px 14px", borderRadius: 8, background: "#0a0a0a", border: `1px solid ${cfg?.accent}33`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, color: "#888" }}>{cfg?.icon} {cfg?.label}</span>
+                      <div key={tx.agentId} style={{ flex: 1, minWidth: 120, padding: "10px 14px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#A0A0A0" }}>{cfg?.icon} {cfg?.label}</span>
                         <span style={{ fontSize: 12, color: cfg?.accent, fontWeight: 600 }}>{tx.amount} XLM</span>
                       </div>
                     );
                   })}
-                  <div style={{ padding: "10px 16px", borderRadius: 8, background: "#0a0a0a", border: "1px solid #4ADE8033", textAlign: "right" }}>
-                    <div style={{ fontSize: 10, color: "#444" }}>TOTAL</div>
+                  <div style={{ padding: "10px 16px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.1)", backdropFilter: "blur(10px)", textAlign: "right" }}>
+                    <div style={{ fontSize: 10, color: "#A0A0A0" }}>TOTAL</div>
                     <div style={{ fontSize: 14, color: "#4ADE80", fontWeight: 600 }}>{totalSpent} XLM</div>
                   </div>
                 </div>

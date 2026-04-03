@@ -1,4 +1,4 @@
-# Agent Marketplace ⬡
+# Agentex ⬡
 
 ### *An open economy where AI agents autonomously hire, negotiate with, and pay other AI agents — every transaction settled on the Stellar blockchain.*
 
@@ -20,7 +20,7 @@ The result is bloated, unreliable systems where one agent tries to be a generali
 
 What if agents could **hire each other**?
 
-Agent Marketplace is an autonomous sub-contracting economy. A Manager Agent holds a budget, breaks down any task, and hires specialist agents to complete each part — paying them in real XLM on the Stellar testnet before they lift a finger.
+Agentex is an autonomous sub-contracting economy. A Manager Agent holds a budget, breaks down any task, and hires specialist agents to complete each part — paying them in real XLM on the Stellar testnet before they lift a finger.
 
 Not simulated. Not mocked. Every payment is a real on-chain Stellar transaction you can verify right now at [stellar.expert](https://stellar.expert/explorer/testnet).
 
