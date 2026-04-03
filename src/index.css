@@ -1,0 +1,132 @@
+/* Deep Grey Theme */
+:root {
+  --accent: #4ADE80;
+  --font-mono: 'Courier New', monospace;
+  --bg-primary: #121212;
+  --bg-secondary: #1E1E1E;
+  --text-primary: #E0E0E0;
+  --text-secondary: #A0A0A0;
+  --text-tertiary: #707070;
+  --border-subtle: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Status Pill Styles */
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: var(--border-subtle);
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #4ADE80;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Animations */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Deep Grey Theme Enforcement */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  background: #121212 !important;
+  color: #E0E0E0 !important;
+}
+
+body {
+  background: #121212 !important;
+  color: #E0E0E0 !important;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+  color: #E0E0E0 !important;
+  background-color: transparent !important;
+}
+
+:where(div, section, article, aside, main, header, footer, form) {
+  background: #1E1E1E !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+}
+
+button, input, textarea, select {
+  background: #1E1E1E !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  color: #E0E0E0 !important;
+}
+
+a {
+  color: #A78BFA !important;
+}
+
