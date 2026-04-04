@@ -60,6 +60,32 @@ const DEFAULT_AGENTS = [
     accent: "#F59E0B", desc: "Synthesizes final answer", isDefault: true,
     system: "You are a Summary Agent. Synthesize all provided inputs into a polished, actionable final answer with headers and bullet points. Be genuinely useful.",
   },
+  {
+    id: "code",
+    label: "Code Reviewer",
+    icon: "💻",
+    price: 1.5,
+    accent: "#A78BFA",
+    desc: "Security audits & logic optimization",
+    system: `You are a Senior Software Engineer and Security Researcher.
+    Analyze the provided code for:
+    1. Logic bugs and edge cases.
+    2. Security vulnerabilities (SQLi, XSS, etc).
+    3. Performance bottlenecks.
+    Provide your review in a structured format with [BUG], [SECURITY], and [OPTIMIZATION] tags. Use code blocks for suggestions.`,
+  },
+  {
+    id: "image",
+    label: "Image Specialist",
+    icon: "🖼️",
+    price: 2,
+    accent: "#F472B6",
+    desc: "Visualizes concepts & UI mockups",
+    system: `You are a Visual Design Agent. Since you are a text-based AI, your goal is to:
+    1. Create a "Mental Render": Describe in vivid, cinematic detail what the image looks like.
+    2. Provide a "Master Prompt": A 100-word prompt for Midjourney/DALL-E to generate this image.
+    3. Describe the layout, lighting, and color theory used.`,
+  },
 ];
 
 // ── AI API — routes through /api/claude proxy (Groq on backend, free) ─────────
@@ -79,13 +105,8 @@ async function callClaude(system, user) {
 }
 
 // ── localStorage ──────────────────────────────────────────────────────────────
-const LS_AGENTS = "am_agents_v2";
-const LS_BOARD  = "am_board_v2";
-
-const loadAgents = () => { try { const s = localStorage.getItem(LS_AGENTS); return s ? JSON.parse(s) : [...DEFAULT_AGENTS]; } catch { return [...DEFAULT_AGENTS]; } };
-const saveAgents = a  => localStorage.setItem(LS_AGENTS, JSON.stringify(a));
-const loadBoard  = () => { try { const s = localStorage.getItem(LS_BOARD);  return s ? JSON.parse(s) : {}; } catch { return {}; } };
-const saveBoard  = b  => localStorage.setItem(LS_BOARD,  JSON.stringify(b));
+// Only default agents are allowed in the marketplace.
+const loadAgents = () => [...DEFAULT_AGENTS];
 
 // ── small components ───────────────────────────────────────────────────────────
 function NavTab({ label, active, onClick, accent = "#4ADE80" }) {
@@ -114,38 +135,63 @@ function Tag({ children, color }) {
   );
 }
 
-function AgentCard({ cfg, keypair, hired, earned, isActive }) {
+function AgentCard({ cfg, hired, isActive }) {
   const isHired = hired.includes(cfg.id);
+  
   return (
-    <div className="glass-card" style={{
-      borderRadius: 12, padding: 16, transition: "all 0.3s",
-      border: `1px solid rgba(255,255,255,0.1)`,
-      background: isActive ? cfg.accent + "12" : "rgba(255,255,255,0.03)",
-      backdropFilter: "blur(10px)",
-      boxShadow: "0 4px 6px rgba(0,0,0,0.3)",
-      position: "relative", overflow: "hidden",
+    <div className="glass agent-card" style={{
+      borderRadius: 16, 
+      padding: 24, 
+      transition: "all 0.4s cubic-bezier(0.23, 1, 0.32, 1)",
+      border: isActive ? `1.5px solid ${cfg.accent}` : `1px solid rgba(255, 255, 255, 0.08)`,
+      background: isActive ? `${cfg.accent}10` : "rgba(15, 15, 15, 0.6)",
+      position: "relative",
+      display: "flex",
+      flexDirection: "column",
+      minHeight: "180px",
+      boxSizing: "border-box"
     }}>
+      {/* Top Row: Icon and READY tag (from screenshot) */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <span style={{ fontSize: 28, color: cfg.accent }}>{cfg.icon}</span>
+        <span style={{ 
+          fontSize: 10, 
+          fontWeight: 700, 
+          color: "#444", 
+          letterSpacing: "0.15em",
+          textTransform: "uppercase"
+        }}>READY</span>
+      </div>
+
+      {/* Middle: Content */}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+          {cfg.label}
+        </div>
+        <div style={{ fontSize: 12, color: "#888", lineHeight: 1.5, marginBottom: 16 }}>
+          {cfg.desc}
+        </div>
+      </div>
+
+      {/* Bottom: Pricing (The "Fact Checker" Custom tag is removed here) */}
+      <div style={{ marginTop: "auto" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>
+          {cfg.price} XLM <span style={{ color: "#444", fontWeight: 400, fontSize: 12 }}>/ task</span>
+        </div>
+      </div>
+      
+      {/* Glowing border effect when active */}
       {isActive && (
         <div style={{
           position: "absolute", top: 0, left: 0, right: 0, height: 2,
-          background: cfg.accent, animation: "pulse 1s ease-in-out infinite alternate",
+          background: cfg.accent, borderRadius: "16px 16px 0 0",
+          boxShadow: `0 0 20px ${cfg.accent}`
         }}/>
       )}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-        <span style={{ fontSize: 22, color: cfg.accent }}>{cfg.icon}</span>
-        {isHired ? <Tag color={cfg.accent}>HIRED</Tag> : <Tag color="#555">READY</Tag>}
-      </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "#f0f0f0", marginBottom: 3 }}>{cfg.label}</div>
-      <div style={{ fontSize: 11, color: "#666", marginBottom: 12 }}>{cfg.desc}</div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-        <span style={{ fontSize: 12, color: cfg.accent, fontWeight: 600 }}>{cfg.price} XLM / task</span>
-        {earned > 0 && <span style={{ fontSize: 11, color: "#4ADE80" }}>+{earned} earned</span>}
-      </div>
-      {keypair && <div style={{ fontSize: 10, color: "#444", fontFamily: "var(--font-mono)" }}>{abbr(keypair.publicKey())}</div>}
-      {!cfg.isDefault && <div style={{ fontSize: 9, color: "#A78BFA", marginTop: 4 }}>CUSTOM</div>}
     </div>
   );
 }
+
 
 function LogLine({ log, agents }) {
   const cfg = agents.find(a => a.id === log.agentId);
@@ -208,165 +254,91 @@ function ResultTabs({ results, agents, tab, setTab }) {
 }
 
 // ── Registry view ─────────────────────────────────────────────────────────────
-function RegistryView({ agents, agentKPs, walletStatus, onAdd, onRemove }) {
-  const [form,   setForm]   = useState({ name: "", desc: "", price: "1" });
-  const [status, setStatus] = useState("idle");
-  const [errMsg, setErrMsg] = useState("");
-
-  const handleAdd = async () => {
-    if (!form.name.trim() || !form.desc.trim()) return;
-    const price = parseFloat(form.price);
-    if (isNaN(price) || price < 0.5) { setErrMsg("Min price is 0.5 XLM"); setStatus("error"); return; }
-    setStatus("loading"); setErrMsg("");
-    try {
-      await onAdd({ name: form.name.trim(), desc: form.desc.trim(), price });
-      setForm({ name: "", desc: "", price: "1" });
-      setStatus("done");
-      setTimeout(() => setStatus("idle"), 2500);
-    } catch(e) { setErrMsg(e.message); setStatus("error"); }
-  };
+function RegistryView() {
+  const VISION_POINTS = [
+    { 
+      title: "Monetize your AI", 
+      desc: "Earn XLM every time your agent is hired by the Marketplace Manager.", 
+      icon: "💰" 
+    },
+    { 
+      title: "On-Chain Reputation", 
+      desc: "Build trust through verified task completion and automated feedback loops.", 
+      icon: "🛡️" 
+    },
+    { 
+      title: "Global Reach", 
+      desc: "Your n8n or Python workflows, accessible by everyone via a single Stellar address.", 
+      icon: "🌍" 
+    }
+  ];
 
   return (
-    <div>
-      {/* form */}
-      <div className="glass-card" style={{ borderRadius: 12, padding: 20, marginBottom: 20, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
-        <div style={{ fontSize: 10, color: "#A78BFA", letterSpacing: "0.12em", marginBottom: 16, fontWeight: 600 }}>REGISTER NEW AGENT</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-          <div>
-            <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>AGENT NAME</div>
-            <input value={form.name} onChange={e => setForm(p => ({...p, name: e.target.value}))}
-              placeholder="e.g. Fact Checker Agent"
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>PRICE (XLM)</div>
-            <input value={form.price} onChange={e => setForm(p => ({...p, price: e.target.value}))}
-              type="number" min="0.5" step="0.5"
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
-            />
-          </div>
+    <div className="glass" style={{ padding: "80px 40px", textAlign: "center", position: "relative" }}>
+      
+      {/* Branding Header */}
+      <div style={{ marginBottom: 60 }}>
+        <div style={{ 
+          display: "inline-block", padding: "4px 16px", borderRadius: "99px", 
+          background: "rgba(0, 255, 170, 0.1)", border: "1px solid var(--accent)",
+          color: "var(--accent)", fontSize: 11, fontWeight: 700, letterSpacing: "0.2em", marginBottom: 20
+        }}>
+          ROADMAP
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: "#A0A0A0", marginBottom: 6 }}>SKILL / DESCRIPTION</div>
-          <input value={form.desc} onChange={e => setForm(p => ({...p, desc: e.target.value}))}
-            placeholder="e.g. Verifies facts and flags inaccuracies in research"
-            style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", color: "#E0E0E0", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box" }}
-          />
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <button onClick={handleAdd} disabled={status === "loading" || !form.name.trim() || !form.desc.trim()} style={{
-            padding: "10px 20px", borderRadius: 8, border: "1px solid #A78BFA66",
-            background: "#A78BFA15", color: "#A78BFA", fontSize: 12, fontWeight: 600,
-            cursor: status === "loading" ? "wait" : "pointer", letterSpacing: "0.06em", fontFamily: "inherit",
-          }}>
-            {status === "loading" ? "REGISTERING + FUNDING..." : "REGISTER AGENT ▶"}
-          </button>
-          {status === "done"  && <span style={{ fontSize: 11, color: "#4ADE80" }}>Agent registered and funded on testnet!</span>}
-          {status === "error" && <span style={{ fontSize: 11, color: "#F87171" }}>{errMsg}</span>}
-          {status === "idle"  && walletStatus === "ready"  && <span style={{ fontSize: 11, color: "#A0A0A0" }}>Wallet auto-funded via Stellar Friendbot</span>}
-          {status === "idle"  && walletStatus !== "ready"  && <span style={{ fontSize: 11, color: "#A0A0A0" }}>Set up wallets on the Marketplace tab first</span>}
-        </div>
+        
+        <h2 style={{ fontSize: 36, fontWeight: 800, margin: 0, letterSpacing: "-0.04em", lineHeight: 1.1 }}>
+          Agentex Marketplace: <br/>
+          <span style={{ opacity: 0.5 }}>Open for Registration in v2.0</span>
+        </h2>
       </div>
 
-      {/* agent list */}
-      <div style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", marginBottom: 12, fontWeight: 600 }}>
-        ALL REGISTERED AGENTS ({agents.length})
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 10 }}>
-        {agents.map(a => (
-          <div key={a.id} className="glass-card" style={{ borderRadius: 10, padding: 14, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-              <span style={{ fontSize: 20, color: a.accent }}>{a.icon}</span>
-              {a.isDefault
-                ? <Tag color="#444">DEFAULT</Tag>
-                : <button onClick={() => onRemove(a.id)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid #F8717133", background: "transparent", color: "#F87171", fontSize: 10, cursor: "pointer", fontFamily: "inherit" }}>remove</button>
-              }
+      {/* Feature Bento Grid */}
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", 
+        gap: 20, 
+        maxWidth: 1000, 
+        margin: "0 auto" 
+      }}>
+        {VISION_POINTS.map((p, i) => (
+          <div key={i} className="glass" style={{ 
+            padding: "32px 24px", 
+            textAlign: "left", 
+            background: "rgba(255,255,255,0.02)",
+            transition: "transform 0.3s ease"
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 20 }}>{p.icon}</div>
+            <div style={{ 
+              fontWeight: 700, 
+              fontSize: 16, 
+              marginBottom: 8, 
+              color: "#fff",
+              letterSpacing: "-0.01em" 
+            }}>
+              {p.title}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: "#E0E0E0", marginBottom: 3 }}>{a.label}</div>
-            <div style={{ fontSize: 11, color: "#A0A0A0", marginBottom: 8 }}>{a.desc}</div>
-            <div style={{ fontSize: 12, color: a.accent, fontWeight: 600, marginBottom: 4 }}>{a.price} XLM / task</div>
-            {agentKPs[a.id] && <div style={{ fontSize: 9, color: "#A0A0A0", fontFamily: "var(--font-mono)" }}>{abbr(agentKPs[a.id].publicKey())}</div>}
+            <div style={{ 
+              fontSize: 13, 
+              color: "#888", 
+              lineHeight: 1.5,
+              fontWeight: 400 
+            }}>
+              {p.desc}
+            </div>
           </div>
         ))}
       </div>
-    </div>
-  );
-}
 
-// ── Leaderboard view ───────────────────────────────────────────────────────────
-function LeaderboardView({ board, agents }) {
-  const rows = Object.entries(board)
-    .map(([id, data]) => ({ id, ...data }))
-    .sort((a, b) => b.earned - a.earned);
-
-  const MEDALS = ["#F59E0B", "#9CA3AF", "#FB923C"];
-  const totalPaid = rows.reduce((s, r) => s + r.earned, 0);
-
-  return (
-    <div>
-      <div style={{ fontSize: 10, color: "#555", letterSpacing: "0.12em", marginBottom: 14, fontWeight: 600 }}>
-        AGENT EARNINGS LEADERBOARD (STELLAR TESTNET)
+      {/* Subtle Bottom Accent */}
+      <div style={{ 
+        marginTop: 60, 
+        fontSize: 11, 
+        color: "#444", 
+        letterSpacing: "0.1em", 
+        textTransform: "uppercase" 
+      }}>
+        Powered by Stellar Network 
       </div>
-
-      {rows.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "#333", fontSize: 13 }}>
-          No earnings yet.<br/>Run a task on the Marketplace tab to populate the leaderboard.
-        </div>
-      ) : (
-        <>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            {rows.map((row, i) => {
-              const cfg    = agents.find(a => a.id === row.id);
-              const accent = cfg?.accent || row.accent || "#888";
-              const avg    = row.tasks > 0 ? (row.earned / row.tasks).toFixed(2) : "0.00";
-              return (
-                <div key={row.id} className="glass-card" style={{
-                  borderRadius: 10, padding: "14px 18px",
-                  background: "rgba(255,255,255,0.03)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backdropFilter: "blur(10px)",
-                  boxShadow: "0 4px 6px rgba(0,0,0,0.3)",
-                  display: "flex", alignItems: "center", gap: 16,
-                }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
-                    background: i < 3 ? MEDALS[i] + "22" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${i < 3 ? MEDALS[i] + "66" : "rgba(255,255,255,0.1)"}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 13, fontWeight: 600,
-                    color: i < 3 ? MEDALS[i] : "#A0A0A0",
-                  }}>
-                    {i + 1}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
-                      <span style={{ fontSize: 16, color: accent }}>{row.icon}</span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#E0E0E0" }}>{row.label}</span>
-                      {i === 0 && <Tag color={accent}>TOP EARNER</Tag>}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#A0A0A0" }}>
-                      {row.tasks} task{row.tasks !== 1 ? "s" : ""} completed · {avg} XLM avg per task
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 22, fontWeight: 600, color: accent }}>{row.earned}</div>
-                    <div style={{ fontSize: 10, color: "#A0A0A0" }}>XLM earned</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="glass-card" style={{ padding: "12px 18px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)", backdropFilter: "blur(10px)", boxShadow: "0 4px 6px rgba(0,0,0,0.3)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#A0A0A0" }}>Total XLM paid out to all agents</div>
-              <div style={{ fontSize: 10, color: "#A0A0A0", marginTop: 2 }}>Verified on Stellar testnet blockchain</div>
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 600, color: "#4ADE80" }}>{totalPaid.toFixed(1)} XLM</div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -374,7 +346,6 @@ function LeaderboardView({ board, agents }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [agents,       setAgents]       = useState(() => loadAgents());
-  const [board,        setBoard]        = useState(() => loadBoard());
   const [agentKPs,     setAgentKPs]     = useState({});
   const [managerKP,    setManagerKP]    = useState(null);
   const [managerBal,   setManagerBal]   = useState(null);
@@ -422,14 +393,32 @@ export default function App() {
       const kps = {};
       const current = loadAgents();
       for (const a of current) {
-        kps[a.id] = StellarSdk.Keypair.random();
-        await friendbot(kps[a.id].publicKey());
+        const agentKP = StellarSdk.Keypair.random();
+        const pub = agentKP.publicKey();
+        kps[a.id] = agentKP;
+
+        addLog("stellar", `Creating account for ${a.label} (2 XLM spawn fee)...`);
+
+        const res = await fetch('/api/pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            destination: pub,
+            amount: 2,
+            mode: 'create',
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(`Failed to onboard ${a.label}: ${errData.error}`);
+        }
       }
 
       setAgentKPs(kps);
       setWalletStatus("ready");
       addLog("stellar", `Manager: ${mData.balance.toFixed(4)} XLM — ${current.length} agent wallets funded.`);
-      addLog("stellar", "All wallets live on Stellar testnet. Ready.");
+      addLog("stellar", "All wallets live on Stellar testnet via Manager treasury. Ready.");
     } catch(e) {
       setWalletStatus("error"); setWalletMsg(e.message);
       addLog("error", e.message);
@@ -437,30 +426,10 @@ export default function App() {
   };
 
   // ── register agent ─────────────────────────────────────────────────────────
-  const registerAgent = async ({ name, desc, price }) => {
-    const customCount = agents.filter(a => !a.isDefault).length;
-    const accent = ACCENTS[customCount % ACCENTS.length];
-    const icon   = ICONS[customCount % ICONS.length];
-    const id     = "custom_" + Date.now();
-    const system = `You are a ${name}. Your specialty: ${desc}. Complete assigned tasks thoroughly and return high-quality, structured results relevant to your specialty.`;
-    const newAgent = { id, label: name, icon, price, accent, desc, system, isDefault: false };
-
-    const kp = StellarSdk.Keypair.random();
-    await friendbot(kp.publicKey());
-
-    const updated = [...agents, newAgent];
-    setAgents(updated);
-    saveAgents(updated);
-    setAgentKPs(p => ({...p, [id]: kp}));
-  };
+  // Removed: Custom agent registration disabled. Only default agents allowed.
 
   // ── remove agent ───────────────────────────────────────────────────────────
-  const removeAgent = (id) => {
-    const updated = agents.filter(a => a.id !== id);
-    setAgents(updated);
-    saveAgents(updated);
-    setAgentKPs(p => { const n = {...p}; delete n[id]; return n; });
-  };
+  // Removed: Agent removal disabled. Only default agents allowed.
 
   const executeAgentTask = async (cfg, instruction, context) => {
     // 1. Prepare context
@@ -593,27 +562,8 @@ RESPONSE FORMAT (JSON ONLY):
       }
 
       setResults(gathered);
+      setEarned(sessionEarned);
       setTab(Object.keys(gathered).pop());
-
-      // --- FIX 3: Leaderboard Persistence (Merge with LocalStorage) ---
-      const currentBoard = loadBoard(); // Load latest from LS
-      const updatedBoard = { ...currentBoard };
-
-      for (const [agentId, amount] of Object.entries(sessionEarned)) {
-        const cfg = agents.find(a => a.id === agentId);
-        if (!cfg) continue;
-
-        if (!updatedBoard[agentId]) {
-          updatedBoard[agentId] = { label: cfg.label, icon: cfg.icon, accent: cfg.accent, earned: 0, tasks: 0 };
-        }
-        
-        updatedBoard[agentId].earned = Number((updatedBoard[agentId].earned + amount).toFixed(2));
-        updatedBoard[agentId].tasks += 1;
-      }
-
-      // Save to state AND localStorage immediately
-      setBoard(updatedBoard);
-      saveBoard(updatedBoard); 
 
       addLog("manager", "Market session finalized. All payments confirmed.");
 
@@ -661,7 +611,6 @@ RESPONSE FORMAT (JSON ONLY):
         <div style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", marginBottom: 20, display: "flex" }}>
           <NavTab label="◈ Marketplace" active={view === "marketplace"} onClick={() => setView("marketplace")} accent="#4ADE80"/>
           <NavTab label="+ Registry"    active={view === "registry"}    onClick={() => setView("registry")}    accent="#A78BFA"/>
-          <NavTab label="↑ Leaderboard" active={view === "leaderboard"} onClick={() => setView("leaderboard")} accent="#F59E0B"/>
         </div>
 
         {/* ── marketplace ── */}
@@ -672,8 +621,8 @@ RESPONSE FORMAT (JSON ONLY):
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 20 }}>
               {agents.map(cfg => (
-                <AgentCard key={cfg.id} cfg={cfg} keypair={agentKPs[cfg.id] || null}
-                  hired={hired} earned={earned[cfg.id] || 0} isActive={active === cfg.id}/>
+                <AgentCard key={cfg.id} cfg={cfg}
+                  hired={hired} isActive={active === cfg.id}/>
               ))}
             </div>
 
@@ -793,12 +742,7 @@ RESPONSE FORMAT (JSON ONLY):
 
         {/* ── registry ── */}
         {view === "registry" && (
-          <RegistryView agents={agents} agentKPs={agentKPs} walletStatus={walletStatus} onAdd={registerAgent} onRemove={removeAgent}/>
-        )}
-
-        {/* ── leaderboard ── */}
-        {view === "leaderboard" && (
-          <LeaderboardView board={board} agents={agents}/>
+          <RegistryView/>
         )}
 
       </div>

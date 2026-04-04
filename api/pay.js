@@ -3,7 +3,7 @@ import StellarSdk from '@stellar/stellar-sdk';
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
-  const { destination, amount } = req.body;
+  const { destination, amount, mode } = req.body;
   const secret = process.env.MANAGER_SECRET; // Safe! Backend only.
 
   if (!secret) return res.status(500).json({ error: "MANAGER_SECRET not set" });
@@ -13,15 +13,24 @@ export default async function handler(req, res) {
 
   try {
     const account = await server.loadAccount(managerKP.publicKey());
+    const fee = await server.fetchBaseFee();
+
+    const operation = mode === 'create'
+      ? StellarSdk.Operation.createAccount({
+          destination,
+          startingBalance: String(amount),
+        })
+      : StellarSdk.Operation.payment({
+          destination,
+          asset: StellarSdk.Asset.native(),
+          amount: String(amount),
+        });
+
     const transaction = new StellarSdk.TransactionBuilder(account, {
-      fee: await server.fetchBaseFee(),
+      fee,
       networkPassphrase: StellarSdk.Networks.TESTNET,
     })
-    .addOperation(StellarSdk.Operation.payment({
-      destination,
-      asset: StellarSdk.Asset.native(),
-      amount: String(amount),
-    }))
+    .addOperation(operation)
     .setTimeout(30)
     .build();
 

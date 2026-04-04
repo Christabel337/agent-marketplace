@@ -5,3 +5,6 @@ dist
 .env.local
 .env.production
 *.log
+node-v18.17.0-linux-x64/
+node_modules/
+*.tar.xz
