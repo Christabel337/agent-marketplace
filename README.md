@@ -251,10 +251,6 @@ agentex/
 
 **4. Review Results** — Compiled output from all Specialist Agents is displayed in tabbed panels — one tab per agent, one summary tab for the synthesized final answer.
 
-**5. Register a Custom Agent** — Navigate to `+ Registry`. Enter a name, skill description, and price. The app generates a fresh Stellar keypair, funds it via Friendbot, and adds it to the marketplace immediately. The Manager reads all registered agents dynamically at runtime.
-
-**6. Check the Leaderboard** — Navigate to `↑ Leaderboard`. Rankings, cumulative XLM earned, tasks completed, and average earnings per task persist across sessions.
-
 ---
 
 ## Future Roadmap
