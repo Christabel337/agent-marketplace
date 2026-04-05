@@ -1,0 +1,432 @@
+{
+  "name": "Agentex — Research Agent (x402 + Stellar)",
+  "nodes": [
+    {
+      "id": "node-webhook",
+      "name": "Webhook: Receive Task",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "research-agent",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "notes": "Manager Agent calls this endpoint with a task. First call (no payment) returns 402. Second call (with X-Payment-Hash) executes the pipeline."
+    },
+    {
+      "id": "node-check-payment-header",
+      "name": "Has Payment Header?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [480, 400],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.headers['x-payment-hash'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "Branches on whether the caller provided an X-Payment-Hash header. No header = x402 probe. Header present = payment verification flow."
+    },
+    {
+      "id": "node-respond-402",
+      "name": "Respond: 402 Payment Required",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [720, 260],
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 402,
+        "responseBody": "={\n  \"x402\": true,\n  \"agentId\": \"research\",\n  \"amount\": \"{{ $json.body.price || '1' }}\",\n  \"asset\": \"XLM\",\n  \"network\": \"Stellar Testnet\",\n  \"destination\": \"{{ $json.body.agentPublicKey }}\",\n  \"description\": \"Payment required to unlock Research Agent\",\n  \"instructions\": \"Submit a Stellar testnet payment to the destination address, then retry this request with the X-Payment-Hash header set to your transaction hash.\",\n  \"webhookUrl\": \"{{ $json.headers.host }}/webhook/research-agent\"\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "notes": "Standard x402 response. Tells the Manager exactly how much to pay, to which wallet, and on which network. The Manager uses this to construct and sign a Stellar transaction."
+    },
+    {
+      "id": "node-verify-stellar-payment",
+      "name": "Verify Payment on Stellar Horizon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 540],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://horizon-testnet.stellar.org/transactions/{{ $json.headers['x-payment-hash'] }}/operations",
+        "options": {
+          "retry": {
+            "enabled": true,
+            "maxTries": 5,
+            "waitBetweenTries": 2000
+          },
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "notes": "Queries Stellar Horizon to fetch all operations for the submitted transaction hash. Retries up to 5 times with 2s delay to allow Horizon indexing. Passes the full response forward for validation."
+    },
+    {
+      "id": "node-validate-payment",
+      "name": "Payment Valid?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 540],
+      "parameters": {
+        "jsCode": "const horizonResponse = $input.item.json;\nconst statusCode = horizonResponse.statusCode;\n\nif (statusCode !== 200) {\n  return [{\n    json: {\n      valid: false,\n      error: `Horizon returned ${statusCode} — transaction not found or not yet indexed.`\n    }\n  }];\n}\n\nconst body = horizonResponse.body;\nconst operations = body?._embedded?.records || [];\n\n// Pull expected values from the original webhook input\nconst expectedDestination = $('Webhook: Receive Task').item.json.body.agentPublicKey;\nconst expectedAmount = parseFloat($('Webhook: Receive Task').item.json.body.price || '1');\n\nconst match = operations.find(op =>\n  op.type === 'payment' &&\n  op.to === expectedDestination &&\n  parseFloat(op.amount) >= expectedAmount\n);\n\nif (!match) {\n  return [{\n    json: {\n      valid: false,\n      error: `No valid payment found. Expected ${expectedAmount} XLM to ${expectedDestination}.`\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    valid: true,\n    txHash: $('Webhook: Receive Task').item.json.headers['x-payment-hash'],\n    paidAmount: match.amount,\n    destination: match.to,\n    from: match.from,\n    task: $('Webhook: Receive Task').item.json.body.task\n  }\n}];"
+      },
+      "notes": "Validates the Horizon response: checks that a 'payment' operation exists with the correct destination and sufficient XLM amount. Returns { valid: true/false } to drive the next branch."
+    },
+    {
+      "id": "node-check-valid",
+      "name": "Is Payment Confirmed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1200, 540],
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "condition-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "notes": "Routes to either a 402 error response (payment invalid) or the full research pipeline (payment confirmed)."
+    },
+    {
+      "id": "node-respond-402-invalid",
+      "name": "Respond: 402 Invalid Payment",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1440, 380],
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 402,
+        "responseBody": "={\n  \"error\": {\n    \"message\": \"{{ $json.error }}\",\n    \"code\": \"PAYMENT_VERIFICATION_FAILED\"\n  }\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "notes": "Payment hash was provided but verification failed — wrong destination, insufficient amount, or Horizon couldn't find the transaction."
+    },
+    {
+      "id": "node-serp-search",
+      "name": "SerpAPI: Web Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 700],
+      "parameters": {
+        "method": "GET",
+        "url": "https://serpapi.com/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.task }}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{ $credentials.serpApiKey || $env.SERPAPI_KEY }}"
+            },
+            {
+              "name": "num",
+              "value": "10"
+            },
+            {
+              "name": "engine",
+              "value": "google"
+            },
+            {
+              "name": "output",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "notes": "Performs a live Google search via SerpAPI for the task submitted by the Manager Agent. Returns organic results, knowledge graph, and answer box. Replace $env.SERPAPI_KEY with your n8n credential."
+    },
+    {
+      "id": "node-extract-search-results",
+      "name": "Extract & Format Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1680, 700],
+      "parameters": {
+        "jsCode": "const serpData = $input.item.json;\nconst task = $('Is Payment Confirmed?').item.json.task;\n\n// Extract the most useful parts of the SERP response\nconst organicResults = (serpData.organic_results || []).slice(0, 6).map(r => ({\n  title: r.title,\n  snippet: r.snippet,\n  link: r.link\n}));\n\nconst answerBox = serpData.answer_box\n  ? `DIRECT ANSWER: ${serpData.answer_box.answer || serpData.answer_box.snippet || ''}`\n  : '';\n\nconst knowledgeGraph = serpData.knowledge_graph\n  ? `KNOWLEDGE GRAPH: ${serpData.knowledge_graph.description || ''}`\n  : '';\n\nconst relatedQuestions = (serpData.related_questions || []).slice(0, 3).map(q =>\n  `Q: ${q.question} → ${q.snippet}`\n).join('\\n');\n\nconst searchContext = [\n  answerBox,\n  knowledgeGraph,\n  'TOP SEARCH RESULTS:',\n  ...organicResults.map((r, i) => `[${i+1}] ${r.title}\\n    ${r.snippet}\\n    Source: ${r.link}`),\n  relatedQuestions ? `RELATED QUESTIONS:\\n${relatedQuestions}` : ''\n].filter(Boolean).join('\\n\\n');\n\nreturn [{\n  json: {\n    task,\n    searchContext,\n    sourceCount: organicResults.length,\n    txHash: $('Is Payment Confirmed?').item.json.txHash,\n    paidAmount: $('Is Payment Confirmed?').item.json.paidAmount\n  }\n}];"
+      },
+      "notes": "Extracts and concatenates the answer box, knowledge graph, and top 6 organic results into a clean research context string for the Groq AI analysis step."
+    },
+    {
+      "id": "node-groq-analysis",
+      "name": "Groq: AI Research Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 700],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GROQ_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"max_tokens\": 1200,\n  \"temperature\": 0.3,\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a Research Agent operating inside an autonomous AI labor marketplace called Agentex. You have been hired and paid in XLM on the Stellar blockchain to complete this research task. Your output will be passed to a Data Agent and then a Summary Agent. Be thorough, factual, and well-organized. Use clear paragraphs with specific facts, figures, and sources. Avoid vague generalities.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"RESEARCH TASK: {{ $json.task }}\\n\\nWEB SEARCH CONTEXT (from live Google search):\\n{{ $json.searchContext }}\\n\\nUsing the search results above as your primary source material, produce a comprehensive, well-organized research report. Cite sources where possible. Structure your response with clear sections.\"\n    }\n  ]\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      },
+      "notes": "Sends the task + live search context to Groq (Llama 3.3 70B). The system prompt instructs the model that it has been paid on Stellar and its output feeds downstream agents. Temperature 0.3 keeps responses factual."
+    },
+    {
+      "id": "node-build-response",
+      "name": "Build Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2160, 700],
+      "parameters": {
+        "jsCode": "const groqResponse = $input.item.json;\nconst researchResult = groqResponse.choices?.[0]?.message?.content || 'Research complete.';\nconst usage = groqResponse.usage || {};\n\nconst meta = $('Extract & Format Search Results').item.json;\n\nreturn [{\n  json: {\n    result: researchResult,\n    meta: {\n      agentId: 'research',\n      agentName: 'Research Agent (n8n)',\n      txHash: meta.txHash,\n      paidAmount: `${meta.paidAmount} XLM`,\n      network: 'Stellar Testnet',\n      explorerUrl: `https://stellar.expert/explorer/testnet/tx/${meta.txHash}`,\n      sourcesSearched: meta.sourceCount,\n      tokensUsed: usage.total_tokens || 0,\n      model: 'llama-3.3-70b-versatile',\n      pipeline: 'n8n workflow · SerpAPI → Groq'\n    }\n  }\n}];"
+      },
+      "notes": "Assembles the final response payload: the AI research result plus a rich metadata object (tx hash, explorer URL, token count, pipeline label) so the Manager can display full provenance in the Activity Feed."
+    },
+    {
+      "id": "node-respond-200",
+      "name": "Respond: 200 OK + Research Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2400, 700],
+      "parameters": {
+        "respondWith": "json",
+        "responseCode": 200,
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "X-Agent-Id",
+                "value": "research"
+              },
+              {
+                "name": "X-Powered-By",
+                "value": "Agentex n8n · Stellar · Groq"
+              }
+            ]
+          }
+        }
+      },
+      "notes": "Returns the full research result plus provenance metadata. The Manager Agent reads $json.result for the task output and $json.meta.txHash for Stellar Ledger display."
+    }
+  ],
+  "connections": {
+    "Webhook: Receive Task": {
+      "main": [
+        [
+          {
+            "node": "Has Payment Header?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Payment Header?": {
+      "main": [
+        [
+          {
+            "node": "Verify Payment on Stellar Horizon",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: 402 Payment Required",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Payment on Stellar Horizon": {
+      "main": [
+        [
+          {
+            "node": "Payment Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Payment Valid?": {
+      "main": [
+        [
+          {
+            "node": "Is Payment Confirmed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Payment Confirmed?": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI: Web Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: 402 Invalid Payment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI: Web Search": {
+      "main": [
+        [
+          {
+            "node": "Extract & Format Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Format Search Results": {
+      "main": [
+        [
+          {
+            "node": "Groq: AI Research Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: AI Research Analysis": {
+      "main": [
+        [
+          {
+            "node": "Build Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Final Response": {
+      "main": [
+        [
+          {
+            "node": "Respond: 200 OK + Research Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "agentex" },
+    { "name": "x402" },
+    { "name": "stellar" },
+    { "name": "research-agent" }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-05T00:00:00.000Z",
+  "versionId": "1.0.0"
+}
