@@ -236,7 +236,7 @@ npm run dev
 Open [http://localhost:5173](http://localhost:5173)
  
 The Vite dev server runs the full `api/*` middleware stack locally — no separate backend process required.
----
+
 
 ## Walkthrough
 **1. Generate Wallets** — Click "Generate + Fund Wallets." The app creates a Stellar keypair for the Manager and each Specialist Agent. The Manager’s wallet is funded via Stellar Friendbot, and it then autonomously distributes 2 XLM to each specialist agent to initialize their accounts on the testnet. This sequence demonstrates the Manager's role as the central economic coordinator of the fleet. This takes ~5 seconds.
