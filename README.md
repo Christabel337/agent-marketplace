@@ -2,7 +2,7 @@
 
 > *"Most AI agents halt when they need a service they don't own. Agentex gives them a wallet, a marketplace, and a reputation. Now they can buy expertise."*
 
-**Live Demo → [(https://agentex-stellar.vercel.app/](https://agentex-stellar.vercel.app/))**  &nbsp;|&nbsp; **Network → Stellar Testnet** &nbsp;|&nbsp; **Explorer → [stellar.expert/testnet](https://stellar.expert/explorer/testnet)**
+**Live → [(https://agentex-stellar.vercel.app/](https://agentex-stellar.vercel.app/))**  &nbsp;|&nbsp; **Network → Stellar Testnet** &nbsp;|&nbsp; **Explorer → [stellar.expert/testnet](https://stellar.expert/explorer/testnet)**
 
 ---
 
@@ -155,31 +155,6 @@ Every entry in the Stellar Ledger is independently verifiable. Click "View on ex
  
 **On-Chain Verification** — Horizon verification (`verifyPayment`) queries the full operation set of each submitted transaction and confirms: operation type is `payment`, destination matches the specific agent public key, and amount is greater than or equal to the negotiated price. Verification retries up to 5 times at 2-second intervals to accommodate Horizon indexing latency. Only after this on-chain proof passes does the agent execute its task.
 
----
-
-## n8n Workflow Integration
-
-Agentex supports **pluggable agents via n8n workflows**. Any n8n workflow that implements the x402 protocol can be registered as a Specialist Agent in the marketplace — replacing the built-in serverless endpoints with full workflow automation.
-
-The included **Research Agent workflow** (`agentex-research-agent.workflow.json`) adds live web intelligence to the pipeline:
-
-```
-Manager Agent
-    │  POST /webhook/research-agent  (no payment header)
-    ▼
-  n8n ──▶  HTTP 402  { amount, destination, network }
-    │
-    │  Manager signs Stellar TX, retries with X-Payment-Hash
-    ▼
-  n8n ──▶  Verify on Stellar Horizon  (retry ×5)
-         ──▶  SerpAPI: live Google search
-         ──▶  Groq Llama 3.3 70B: AI analysis grounded in search results
-         ──▶  HTTP 200  { result, meta: { txHash, explorerUrl, ... } }
-```
-
-**What this unlocks:** The Research Agent produces findings grounded in live web data, not just LLM training knowledge while remaining fully payment-gated via the standard x402 cycle. The Manager cannot retrieve results without first paying in XLM, verified on-chain.
-
-
 
 ---
 
@@ -188,7 +163,6 @@ Manager Agent
 | Layer | Technology | Role |
 |---|---|---|
 | **LLM / AI** | Groq API · Llama 3.3 70B Versatile | Manager planning + all Specialist execution |
-| **Workflow Automation** | n8n | Pluggable Research Agent with live web search |
 | **Web Search** | SerpAPI (Google) | Live research grounding for n8n Research Agent |
 | **Blockchain** | Stellar Network (Testnet) | Micro-payment settlement layer |
 | **Blockchain SDK** | `@stellar/stellar-sdk` v15 | Transaction construction, signing, submission |
@@ -230,8 +204,6 @@ agentex/
 ```
 
 
-
-
 ### Environment Variables
 
 | Variable | Required | Description |
@@ -241,15 +213,39 @@ agentex/
 
 ---
 
-## Walkthrough
 
+### Local Development
+ 
+```bash
+# 1. Clone the repository
+git clone https://github.com/YOUR_USERNAME/agentex.git
+cd agentex
+ 
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and add your Groq API key:
+# GROQ_API_KEY=gsk_your_key_here
+ 
+# 3. Install dependencies
+npm install
+ 
+# 4. Start the dev server
+npm run dev
+```
+ 
+Open [http://localhost:5173](http://localhost:5173)
+ 
+The Vite dev server runs the full `api/*` middleware stack locally — no separate backend process required.
+---
+
+## Walkthrough
 **1. Generate Wallets** — Click "Generate + Fund Wallets." The app creates a Stellar keypair for the Manager and each Specialist Agent. The Manager’s wallet is funded via Stellar Friendbot, and it then autonomously distributes 2 XLM to each specialist agent to initialize their accounts on the testnet. This sequence demonstrates the Manager's role as the central economic coordinator of the fleet. This takes ~5 seconds.
 
 **2. Submit a Task** — Type any research, analysis, or coding task. Use the example prompts for inspiration.
 
 **3. Watch the x402 Cycle** — The Activity Feed shows every step in real time: the Manager's plan, each Stellar payment submission,and each on-chain verification . The Stellar Ledger panel displays every transaction with a live link to `stellar.expert`.
 
-**4. Review Results** — Compiled output from all Specialist Agents is displayed in tabbed panels — one tab per agent, one summary tab for the synthesized final answer.
+**4. Review Results** — Compiled output from all Specialist Agents is displayed in tabbed panels, one tab per agent, one summary tab for the synthesized final answer.
 
 ---
 
