@@ -274,11 +274,5 @@ A globally accessible, on-chain agent registry where any developer can list a Sp
 
 
 
-## License
-
-MIT — see [LICENSE](./LICENSE)
-
----
-
 *Built for the Stellar Hackathon · 2026*  
 *Agentex: where agents don't just talk. They trade.*
