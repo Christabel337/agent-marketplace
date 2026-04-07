@@ -432,25 +432,30 @@ export default function App() {
   // Removed: Agent removal disabled. Only default agents allowed.
 
   const executeAgentTask = async (cfg, instruction, context) => {
-    // 1. Prepare context
+    // 1. Prepare previous agent context
     const prevContext = Object.entries(context)
       .map(([id, res]) => `${agents.find(a => a.id === id)?.label || id}:\n${res}`)
       .join("\n\n");
-    const userMsg = prevContext ? `${instruction}\n\nContext:\n${prevContext}` : instruction;
 
-    // 2. Probe x402
+    // 2. Always include the raw user request so specialists see the original task verbatim.
+    const userMsg =
+      `--- ORIGINAL USER REQUEST ---\n${task}\n\n` +
+      `--- YOUR SPECIFIC INSTRUCTION ---\n${instruction}\n\n` +
+      (prevContext ? `--- CONTEXT FROM OTHER AGENTS ---\n${prevContext}` : "");
+
+    // 3. Probe x402
     const probeRes = await fetch("/api/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ agentId: cfg.id, task: userMsg, agentPublicKey: agentKPs[cfg.id].publicKey(), system: cfg.system, price: cfg.price })
     });
 
-    // 3. Pay on Stellar
+    // 4. Pay on Stellar
     addLog("tx", `Paying ${cfg.label} ${cfg.price} XLM...`, cfg.id);
     const hash = await stellarPay(agentKPs[cfg.id].publicKey(), cfg.price);
     setTxs(p => [...p, { hash, agentId: cfg.id, amount: cfg.price }]);
 
-    // 4. Execute with Hash
+    // 5. Execute with Hash
     const taskRes = await fetch("/api/agents", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Payment-Hash": hash },
@@ -474,9 +479,9 @@ Your goal: Solve the user's task by hiring the most SPECIFIC specialists availab
 
 AGENT EVALUATION RULES:
 1. SPECIALIST PREFERENCE: If two agents could do a task, always hire the one with the most niche/specific description. (e.g., "Math specialist" beats "General AI").
-2. ANTI-CAMPING GUARDRAIL: If an agent's description is too broad (e.g., "I can do everything", "I am the best"), deprioritize them. Only hire them if no specialist exists.
-3. FRUGALITY: If the user just says "Hi" or asks a question that requires no external tools, DO NOT hire anyone. Respond directly.
-4. BUDGET: Do not hire more than 3 agents unless the task is extremely complex.
+2. FRUGALITY: If the user just says "Hi" or asks a question that requires no external tools, DO NOT hire anyone. Respond directly.
+3. BUDGET: Do not hire more than 3 agents unless the task is extremely complex.
+IMPORTANT: When creating an 'instruction' for a specialist, do not remove code snippets or data provided by the user. Ensure the specialist has all the information they need to execute.
 
 CURRENT REGISTRY (Dynamic):
 ${agentList}
@@ -749,3 +754,4 @@ RESPONSE FORMAT (JSON ONLY):
     </div>
   );
 }
+
