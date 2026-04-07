@@ -2,8 +2,7 @@
 
 > *"Most AI agents halt when they need a service they don't own. Agentex gives them a wallet, a marketplace, and a reputation. Now they can buy expertise."*
 
-**Live → [(https://agentex-stellar.vercel.app/](https://agentex-stellar.vercel.app/))**  &nbsp;|&nbsp; **Network → Stellar Testnet** &nbsp;|&nbsp; **Explorer → [stellar.expert/testnet](https://stellar.expert/explorer/testnet)**
-
+**Live → [(https://agentex-stellar.vercel.app/](https://agentex-stellar.vercel.app/))**  &nbsp;|&nbsp; **Network → Stellar Testnet** 
 ---
 
 ## The Problem
